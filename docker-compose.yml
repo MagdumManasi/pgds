@@ -1,0 +1,63 @@
+# Full stack: MySQL + Spring Boot API + React (nginx).
+#   cp .env.example .env     (then edit the secrets)
+#   docker compose up --build
+# App: http://localhost:3000   API: http://localhost:8080
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: Sprint7PGDS
+      MYSQL_USER: pgds
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/Sprint7PGDS?useSSL=false&allowPublicKeyRetrieval=true
+      DB_USER: pgds
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (32+ random characters)}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      AI_DEMO_ENDPOINT: ${AI_DEMO_ENDPOINT:-true}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      # AI assistant (Spring AI + RAG). "local" needs no key; "llm" uses any OpenAI-compatible model.
+      ASSISTANT_MODE: ${ASSISTANT_MODE:-local}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-not-configured}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-gpt-4o-mini}
+      LLM_EMBEDDING_MODEL: ${LLM_EMBEDDING_MODEL:-text-embedding-3-small}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach Ollama running on your machine
+    volumes:
+      - assistant_data:/app/data              # saved vector store (embeddings are computed once)
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  mysql_data:
+  assistant_data:

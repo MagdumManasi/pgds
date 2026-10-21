@@ -1,0 +1,62 @@
+spring:
+  ai:
+    openai:
+      # Any OpenAI-compatible endpoint works: OpenAI, Ollama (http://localhost:11434), Groq, Together, etc.
+      # The placeholder key lets the app start in the default "local" assistant mode without any account.
+      api-key: ${OPENAI_API_KEY:not-configured}
+      base-url: ${LLM_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${LLM_CHAT_MODEL:gpt-4o-mini}
+          temperature: 0.2
+      embedding:
+        options:
+          model: ${LLM_EMBEDDING_MODEL:text-embedding-3-small}
+  application:
+    name: pgds-backend
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/pgds?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USER:root}
+    password: ${DB_PASS:root}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate.dialect: org.hibernate.dialect.MySQLDialect
+server:
+  port: 8080
+pgds:
+  assistant:
+    mode: ${ASSISTANT_MODE:local}          # local = no model needed; llm = Spring AI chat + embeddings
+    top-k: 4
+    store-file: ${ASSISTANT_STORE:data/vectorstore.json}
+    requests-per-minute: 20
+  jwt:
+    # Must be >= 32 chars. Override with JWT_SECRET in real deployments.
+    secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-1234}
+    expiration-minutes: 120
+  cors:
+    allowed-origin: ${CORS_ORIGIN:http://localhost:3000}
+  seed-demo-data: ${SEED_DEMO:true}
+  entitlement:
+    aay-kg-per-family: 35
+    phh-kg-per-person: 5
+    rice-share: 0.5   # fraction of the monthly quota issued as rice; remainder is wheat
+  ai:
+    schedule-enabled: true          # nightly analysis at 02:00 IST
+    window-days: 90                 # history used to train the Isolation Forest
+    alert-lookback-days: 7          # only distributions in this window can raise new alerts
+    anomaly-threshold: 0.65         # Isolation Forest score (0.5 = normal, 1.0 = very anomalous)
+    min-training-samples: 50
+    trees: 100
+    sample-size: 256
+    demo-endpoint-enabled: ${AI_DEMO_ENDPOINT:true}   # set false in production
+  security:
+    max-login-failures: 5
+    lock-minutes: 15
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

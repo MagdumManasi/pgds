@@ -1,0 +1,13 @@
+# Activate with SPRING_PROFILES_ACTIVE=prod
+pgds:
+  seed-demo-data: false          # never create demo accounts with known passwords
+  ai:
+    demo-endpoint-enabled: false # no synthetic-data generator
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+spring:
+  jpa:
+    show-sql: false
