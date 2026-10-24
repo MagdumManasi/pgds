@@ -28,7 +28,11 @@ public class DemoDataSeeder implements CommandLineRunner {
     
     @Override
     public void run(String... args) {
-        if (!enabled || users.count() > 0) return;
+        if (!enabled) return;
+        if (users.count() > 0) {
+            seedPuneVillageShops();
+            return;
+        }
 
         var wh = warehouses.save(Warehouse.builder().name("Pune Central Godown").district("Pune").address("Hadapsar").build());
         var fps = shops.save(FairPriceShop.builder().shopCode("FPS101").name("Ganesh Ration Shop")
@@ -57,6 +61,40 @@ public class DemoDataSeeder implements CommandLineRunner {
         // Demo shop stock (warehouse -> FPS transfers) so Sprint 3 distribution has stock to issue
         transfer(wh, fps, GrainType.RICE, "1000");
         transfer(wh, fps, GrainType.WHEAT, "600");
+        seedPuneVillageShops(wh);
+    }
+
+    private void seedPuneVillageShops() {
+        warehouses.findAll().stream()
+                .filter(warehouse -> "Pune".equalsIgnoreCase(warehouse.getDistrict()))
+                .findFirst()
+                .ifPresent(this::seedPuneVillageShops);
+    }
+
+    private void seedPuneVillageShops(Warehouse wh) {
+        var wagholi = villageShop("FPS-WAGHOLI", "Wagholi FPS Dealer", "Wagholi", wh);
+        var pen = villageShop("FPS-PEN", "Pen FPS Dealer", "Pen", wh);
+        if (!users.existsByUsername("dealer_wagholi"))
+            user("dealer_wagholi", "Wagholi FPS Dealer", Role.FPS_DEALER, null, wagholi);
+        if (!users.existsByUsername("dealer_pen"))
+            user("dealer_pen", "Pen FPS Dealer", Role.FPS_DEALER, null, pen);
+        seedVillageCard("MH-PUN-WAGHOLI-0001", "Wagholi Demo Family", "4321", wagholi);
+        seedVillageCard("MH-PUN-PEN-0001", "Pen Demo Family", "8765", pen);
+    }
+
+    private FairPriceShop villageShop(String code, String name, String village, Warehouse wh) {
+        return shops.findByShopCode(code).orElseGet(() -> shops.save(FairPriceShop.builder()
+                .shopCode(code).name(name).district("Pune").address(village + " village")
+                .warehouse(wh).build()));
+    }
+
+    private void seedVillageCard(String cardNumber, String familyName, String aadhaarLast4, FairPriceShop fps) {
+        if (cards.existsByCardNumber(cardNumber)) return;
+        var card = cards.save(RationCard.builder().cardNumber(cardNumber).headOfFamily(familyName)
+                .address(fps.getAddress() + ", Pune").district("Pune").category(CardCategory.PHH)
+                .familyMembers(4).eligible(true).fps(fps).build());
+        beneficiaries.save(Beneficiary.builder().name(familyName).age(35).aadhaarLast4(aadhaarLast4)
+                .rationCard(card).build());
     }
 
     private void transfer(Warehouse wh, FairPriceShop fps, GrainType g, String qty) {

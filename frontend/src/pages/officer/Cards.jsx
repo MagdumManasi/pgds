@@ -13,6 +13,9 @@ export default function Cards() {
   const [flash, setFlash] = useState(null);
   const [selected, setSelected] = useState(null);
   const [member, setMember] = useState(EMPTY_MEMBER);
+  const [duplicates, setDuplicates] = useState(null);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [duplicatesError, setDuplicatesError] = useState('');
 
   const list = useLoad(() => api.get(`/api/officer/ration-cards?page=${page}&size=10${district ? `&district=${encodeURIComponent(district)}` : ''}`).then((r) => r.data), [page, district]);
   const shops = useLoad(() => api.get('/api/officer/fps').then((r) => r.data));
@@ -44,6 +47,12 @@ export default function Cards() {
     if (!window.confirm('Remove this member?')) return;
     try { await api.delete(`/api/officer/beneficiaries/${id}`); members.reload(); } catch (err) { bad(err); }
   }
+  async function findDuplicates() {
+    setDuplicatesLoading(true); setDuplicatesError('');
+    try { setDuplicates(await api.get('/api/officer/beneficiaries/possible-duplicates').then((r) => r.data)); }
+    catch (err) { setDuplicatesError(errMsg(err)); }
+    finally { setDuplicatesLoading(false); }
+  }
 
   return (
     <>
@@ -51,6 +60,10 @@ export default function Cards() {
       <Panel title="Ration Cards" icon="bi-card-list" actions={
         <>
           <input className="form-control form-control-sm" style={{ width: 150 }} placeholder="Filter by district" value={district} onChange={(e) => { setPage(0); setDistrict(e.target.value); }} />
+          <button className="btn btn-sm btn-outline-warning" disabled={duplicatesLoading} onClick={findDuplicates}>
+            {duplicatesLoading ? <span className="spinner-border spinner-border-sm me-1" /> : <i className="bi bi-person-exclamation me-1" />}
+            Check duplicates
+          </button>
           <button className="btn btn-sm btn-success" onClick={() => setShow(!show)}><i className="bi bi-plus-lg" /> New card</button>
         </>}>
         {show && (
@@ -94,6 +107,27 @@ export default function Cards() {
         ))}
         {list.data && <Pager page={page} totalPages={list.data.totalPages} onPage={setPage} />}
       </Panel>
+
+      {duplicates !== null && (
+        <Panel title="Possible duplicate beneficiaries" icon="bi-person-exclamation" className="mt-3"
+          actions={<button className="btn btn-sm btn-outline-secondary" onClick={() => setDuplicates(null)}>Close</button>}>
+          <p className="small text-muted">Matches share the same last four Aadhaar digits and have similar names. These are review suggestions, not confirmed duplicates; verify records before taking action. No records are changed automatically.</p>
+          <ErrorBox error={duplicatesError} />
+          {duplicates.length === 0 ? <Empty text="No possible duplicate beneficiaries found." /> : (
+            <div className="table-responsive">
+              <table className="table table-sm align-middle gg-table">
+                <thead><tr><th>Beneficiary 1</th><th>Ration card</th><th>Beneficiary 2</th><th>Ration card</th><th>Aadhaar (masked)</th><th>Name match</th></tr></thead>
+                <tbody>{duplicates.map((d) => (
+                  <tr key={`${d.firstBeneficiaryId}-${d.secondBeneficiaryId}`}>
+                    <td>{d.firstName}</td><td>{d.firstCardNumber}</td><td>{d.secondName}</td><td>{d.secondCardNumber}</td>
+                    <td>{d.aadhaarMasked}</td><td>{d.nameSimilarityPercent}%</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
 
       {selected && (
         <Panel title={`Members of ${selected.cardNumber} (${selected.familyMembers} allowed)`} icon="bi-people" className="mt-3"

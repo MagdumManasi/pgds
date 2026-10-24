@@ -53,6 +53,23 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
         from StockTransaction t where t.warehouse is not null group by t.warehouse.id, t.grainType""")
     java.util.List<LocationGrainBalance> warehouseBalances();
 
+    /** Grain received by each FPS through warehouse transfers, grouped for the shipment dashboard. */
+    @Query("""
+        select new com.pgds.repo.LocationGrainBalance(t.fps.id, t.grainType, sum(t.quantityKg))
+        from StockTransaction t
+        where t.fps is not null and t.txnType = com.pgds.domain.StockTxnType.TRANSFER_IN
+        group by t.fps.id, t.grainType""")
+    java.util.List<LocationGrainBalance> fpsTransfers();
+
+    /** Grain received by each FPS since the start of the current reporting month. */
+    @Query("""
+        select new com.pgds.repo.LocationGrainBalance(t.fps.id, t.grainType, sum(t.quantityKg))
+        from StockTransaction t
+        where t.fps is not null and t.txnType = com.pgds.domain.StockTxnType.TRANSFER_IN
+          and t.createdAt >= :since
+        group by t.fps.id, t.grainType""")
+    java.util.List<LocationGrainBalance> fpsTransfersSince(@Param("since") java.time.Instant since);
+
     /** Stock leaving a shop in the window (distributions, damage, transfers out). */
     @Query("""
         select new com.pgds.repo.LocationGrainBalance(t.fps.id, t.grainType, sum(t.quantityKg))

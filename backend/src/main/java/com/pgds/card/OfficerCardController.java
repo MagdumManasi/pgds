@@ -47,6 +47,11 @@ public class OfficerCardController {
     @GetMapping("/beneficiaries")
     public List<BeneficiaryView> beneficiariesOfCard(@RequestParam Long cardId) { return beneficiaries.byCard(cardId); }
 
+    @GetMapping("/beneficiaries/possible-duplicates")
+    public List<DuplicateBeneficiaryMatch> possibleDuplicateBeneficiaries() {
+        return beneficiaries.possibleDuplicates();
+    }
+
     @GetMapping("/beneficiaries/{id}")
     public BeneficiaryView getBeneficiary(@PathVariable Long id) { return beneficiaries.get(id); }
 

@@ -36,7 +36,7 @@ export default function Assistant() {
 
   const s = status.data;
   return (
-    <Panel title="AI Assistant" icon="bi-robot" actions={s && (
+    <Panel title={user.role === 'BENEFICIARY' ? 'Citizen Mitra AI' : 'AI Assistant'} icon="bi-robot" actions={s && (
       <span className={`badge text-bg-${s.configuredMode === 'llm' ? 'success' : 'secondary'}`}>
         {s.configuredMode === 'llm' ? 'Language model' : 'Local mode'} · {s.retrieval === 'VECTOR' ? 'semantic search' : 'keyword search'}
       </span>)}>

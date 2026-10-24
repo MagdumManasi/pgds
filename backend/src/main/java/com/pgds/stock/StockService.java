@@ -3,6 +3,7 @@ package com.pgds.stock;
 import com.pgds.common.ApiException;
 import com.pgds.common.PageResponse;
 import com.pgds.domain.*;
+import com.pgds.entitlement.EntitlementService;
 import com.pgds.repo.*;
 import com.pgds.security.AccessGuard;
 import com.pgds.stock.StockDtos.*;
@@ -13,8 +14,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Ledger-based stock. Nothing is ever updated in place: every movement is a new StockTransaction row
@@ -28,6 +35,8 @@ public class StockService {
     private final WarehouseRepository warehouses;
     private final FairPriceShopRepository shops;
     private final StockTransactionRepository txns;
+    private final RationCardRepository cards;
+    private final EntitlementService entitlements;
     private final AccessGuard access;
 
     // ---------- warehouse ----------
@@ -82,8 +91,46 @@ public class StockService {
     @Transactional(readOnly = true)
     public List<ShopRef> shopsServed(String username, Long warehouseId) {
         access.checkWarehouse(username, warehouseId);
+        Map<Long, BigDecimal[]> requirements = new HashMap<>();
+        Map<Long, BigDecimal[]> sentThisMonth = new HashMap<>();
+        Map<Long, BigDecimal[]> sentTotal = new HashMap<>();
+        for (ShopDemandRow row : cards.shopDemand()) {
+            BigDecimal totalKg = entitlements.groupTotalKg(row.category(), row.cards(), row.members());
+            BigDecimal riceKg = totalKg.multiply(entitlements.riceShare()).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal wheatKg = totalKg.subtract(riceKg).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal[] demand = requirements.computeIfAbsent(row.fpsId(),
+                    ignored -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            demand[0] = demand[0].add(riceKg);
+            demand[1] = demand[1].add(wheatKg);
+        }
+        Instant monthStart = LocalDate.now(ZoneId.of("Asia/Kolkata"))
+                .withDayOfMonth(1).atStartOfDay(ZoneId.of("Asia/Kolkata")).toInstant();
+        addTransfers(sentThisMonth, txns.fpsTransfersSince(monthStart));
+        addTransfers(sentTotal, txns.fpsTransfers());
         return shops.findByWarehouseId(warehouseId).stream()
-                .map(s -> new ShopRef(s.getId(), s.getShopCode(), s.getName())).toList();
+                .map(s -> {
+                    BigDecimal[] demand = requirements.getOrDefault(s.getId(),
+                            new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+                    BigDecimal[] monthSent = sentThisMonth.getOrDefault(s.getId(),
+                            new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+                    BigDecimal[] totalSent = sentTotal.getOrDefault(s.getId(),
+                            new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+                    BigDecimal riceStock = txns.fpsBalance(s.getId(), GrainType.RICE);
+                    BigDecimal wheatStock = txns.fpsBalance(s.getId(), GrainType.WHEAT);
+                    return new ShopRef(s.getId(), s.getShopCode(), s.getName(), s.getDistrict(), s.getAddress(),
+                            demand[0], demand[1], riceStock, wheatStock, monthSent[0], monthSent[1],
+                            totalSent[0], totalSent[1],
+                            shortfall(demand[0], riceStock), shortfall(demand[1], wheatStock));
+                }).toList();
+    }
+
+    private void addTransfers(Map<Long, BigDecimal[]> totals, List<LocationGrainBalance> transfers) {
+        for (LocationGrainBalance transfer : transfers) {
+            BigDecimal[] grains = totals.computeIfAbsent(transfer.locationId(),
+                    ignored -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            int index = transfer.grainType() == GrainType.RICE ? 0 : transfer.grainType() == GrainType.WHEAT ? 1 : -1;
+            if (index >= 0) grains[index] = grains[index].add(transfer.kg());
+        }
     }
 
     // ---------- fair price shop ----------
@@ -125,6 +172,10 @@ public class StockService {
         if (available == null || available.compareTo(requested) < 0)
             throw new ApiException(HttpStatus.CONFLICT,
                     "Insufficient stock: available " + (available == null ? "0" : available.toPlainString()) + " kg");
+    }
+
+    private BigDecimal shortfall(BigDecimal requirement, BigDecimal available) {
+        return requirement.subtract(available).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
     }
 
     private ApiException notFound(String what) { return new ApiException(HttpStatus.NOT_FOUND, what + " not found"); }

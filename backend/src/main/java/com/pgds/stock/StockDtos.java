@@ -18,7 +18,12 @@ public final class StockDtos {
                                   @NotNull @DecimalMin(value = "0.01") @Digits(integer = 10, fraction = 2) BigDecimal quantityKg,
                                   @Size(max = 255) String remarks) {}
 
-    public record ShopRef(Long id, String shopCode, String name) {}
+    public record ShopRef(Long id, String shopCode, String name, String district, String address,
+                          BigDecimal monthlyRiceRequirementKg, BigDecimal monthlyWheatRequirementKg,
+                          BigDecimal riceStockKg, BigDecimal wheatStockKg,
+                          BigDecimal riceSentThisMonthKg, BigDecimal wheatSentThisMonthKg,
+                          BigDecimal riceSentTotalKg, BigDecimal wheatSentTotalKg,
+                          BigDecimal suggestedRiceKg, BigDecimal suggestedWheatKg) {}
 
     public record StockBalance(GrainType grainType, BigDecimal quantityKg) {}
 

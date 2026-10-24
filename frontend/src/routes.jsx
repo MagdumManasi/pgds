@@ -25,7 +25,7 @@ export const ROUTES = [
   { path: '/forecasts', label: 'AI Forecasts', icon: 'bi-graph-up-arrow', roles: [ADMIN, OFFICER], element: <Forecasts /> },
   { path: '/reports', label: 'Reports', icon: 'bi-file-earmark-bar-graph', roles: [ADMIN, OFFICER, AUDITOR], element: <Reports /> },
   { path: '/users', label: 'Users & Tools', icon: 'bi-gear', roles: [ADMIN], element: <AdminTools /> },
-  { path: '/warehouse', label: 'Warehouse Stock', icon: 'bi-building', roles: [WAREHOUSE], element: <Warehouse /> },
+  { path: '/warehouse', label: 'Warehouse Stock & Allocation', icon: 'bi-building', roles: [ADMIN, WAREHOUSE], element: <Warehouse /> },
   { path: '/distribute', label: 'Distribute Grain', icon: 'bi-box-arrow-up-right', roles: [DEALER], element: <Distribute /> },
   { path: '/shop-stock', label: 'Shop Stock', icon: 'bi-boxes', roles: [DEALER], element: <ShopStock /> },
   { path: '/my-ration', label: 'My Ration', icon: 'bi-person-vcard', roles: [BENEFICIARY], element: <MyRation /> },

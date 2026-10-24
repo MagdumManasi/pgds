@@ -30,4 +30,9 @@ public final class CardDtos {
 
     public record BeneficiaryView(Long id, String name, int age, String aadhaarMasked,
                                   Long rationCardId, String cardNumber) {}
+
+    public record DuplicateBeneficiaryMatch(
+            Long firstBeneficiaryId, String firstName, String firstCardNumber,
+            Long secondBeneficiaryId, String secondName, String secondCardNumber,
+            String aadhaarMasked, int nameSimilarityPercent) {}
 }

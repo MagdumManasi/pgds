@@ -2,6 +2,7 @@ package com.pgds.stock;
 
 import com.pgds.common.ApiException;
 import com.pgds.domain.*;
+import com.pgds.entitlement.EntitlementService;
 import com.pgds.repo.*;
 import com.pgds.security.AccessGuard;
 import com.pgds.stock.StockDtos.TransferRequest;
@@ -26,6 +27,8 @@ class StockServiceTest {
     @Mock WarehouseRepository warehouses;
     @Mock FairPriceShopRepository shops;
     @Mock StockTransactionRepository txns;
+    @Mock RationCardRepository cards;
+    @Mock EntitlementService entitlements;
     @Mock AccessGuard access;
 
     StockService service;
@@ -34,7 +37,7 @@ class StockServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StockService(warehouses, shops, txns, access);
+        service = new StockService(warehouses, shops, txns, cards, entitlements, access);
         wh = Warehouse.builder().id(1L).name("WH").district("Pune").build();
         fps = FairPriceShop.builder().id(10L).shopCode("FPS101").name("Shop").district("Pune").warehouse(wh).build();
         when(warehouses.findByIdForUpdate(1L)).thenReturn(Optional.of(wh));

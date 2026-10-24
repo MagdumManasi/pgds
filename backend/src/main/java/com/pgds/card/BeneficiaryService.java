@@ -9,12 +9,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class BeneficiaryService {
+
+    private static final int MINIMUM_NAME_SIMILARITY_PERCENT = 85;
 
     private final BeneficiaryRepository beneficiaries;
     private final RationCardRepository cards;
@@ -51,6 +57,27 @@ public class BeneficiaryService {
     }
 
     @Transactional(readOnly = true)
+    public List<DuplicateBeneficiaryMatch> possibleDuplicates() {
+        List<Beneficiary> candidates = beneficiaries.findPossibleDuplicateCandidates();
+        List<DuplicateBeneficiaryMatch> matches = new ArrayList<>();
+        for (int i = 0; i < candidates.size(); i++) {
+            Beneficiary first = candidates.get(i);
+            for (int j = i + 1; j < candidates.size(); j++) {
+                Beneficiary second = candidates.get(j);
+                if (!first.getAadhaarLast4().equals(second.getAadhaarLast4())) continue;
+                int similarity = nameSimilarityPercent(first.getName(), second.getName());
+                if (similarity < MINIMUM_NAME_SIMILARITY_PERCENT) continue;
+                matches.add(new DuplicateBeneficiaryMatch(first.getId(), first.getName(),
+                        first.getRationCard().getCardNumber(), second.getId(), second.getName(),
+                        second.getRationCard().getCardNumber(), "XXXX-XXXX-" + first.getAadhaarLast4(), similarity));
+            }
+        }
+        return matches.stream()
+                .sorted(Comparator.comparingInt(DuplicateBeneficiaryMatch::nameSimilarityPercent).reversed())
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public BeneficiaryView get(Long id) {
         return toView(beneficiaries.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Beneficiary not found")));
@@ -64,5 +91,38 @@ public class BeneficiaryService {
     public static BeneficiaryView toView(Beneficiary b) {
         return new BeneficiaryView(b.getId(), b.getName(), b.getAge(), "XXXX-XXXX-" + b.getAadhaarLast4(),
                 b.getRationCard().getId(), b.getRationCard().getCardNumber());
+    }
+
+    static int nameSimilarityPercent(String first, String second) {
+        String left = normalizeName(first);
+        String right = normalizeName(second);
+        int longest = Math.max(left.length(), right.length());
+        if (longest == 0) return 100;
+        return (int) Math.round(100.0 * (longest - editDistance(left, right)) / longest);
+    }
+
+    private static String normalizeName(String name) {
+        return Normalizer.normalize(name, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    private static int editDistance(String first, String second) {
+        int[] previous = new int[second.length() + 1];
+        for (int j = 0; j <= second.length(); j++) previous[j] = j;
+        for (int i = 1; i <= first.length(); i++) {
+            int[] current = new int[second.length() + 1];
+            current[0] = i;
+            for (int j = 1; j <= second.length(); j++) {
+                int substitutionCost = first.charAt(i - 1) == second.charAt(j - 1) ? 0 : 1;
+                current[j] = Math.min(Math.min(current[j - 1] + 1, previous[j] + 1),
+                        previous[j - 1] + substitutionCost);
+            }
+            previous = current;
+        }
+        return previous[second.length()];
     }
 }

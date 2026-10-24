@@ -9,6 +9,17 @@ import java.util.Optional;
 
 public interface BeneficiaryRepository extends JpaRepository<Beneficiary, Long> {
     boolean existsByAadhaarLast4AndNameIgnoreCase(String aadhaarLast4, String name);
+    @Query("""
+        select distinct b
+        from Beneficiary b join fetch b.rationCard r
+        where b.aadhaarLast4 is not null
+          and exists (
+            select other.id from Beneficiary other
+            where other.aadhaarLast4 = b.aadhaarLast4 and other.id <> b.id
+          )
+        order by b.id
+        """)
+    List<Beneficiary> findPossibleDuplicateCandidates();
     long countByRationCardId(Long rationCardId);
     List<Beneficiary> findByRationCardId(Long rationCardId);
     Optional<Beneficiary> findByUserUsername(String username);

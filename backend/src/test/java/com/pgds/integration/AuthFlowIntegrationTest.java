@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,6 +48,25 @@ class AuthFlowIntegrationTest extends AbstractIntegrationTest {
         getJson("/api/officer/dashboard/summary", login("officer"), 200);
         getJson("/api/audit/ai/alerts", login("auditor"), 200);
         getJson("/api/officer/ai/alerts", login("auditor"), 403);
+    }
+
+    @Test
+    void officerCanReviewPossibleBeneficiaryDuplicates() throws Exception {
+        String officer = login("officer");
+        assertEquals(0, getJson("/api/officer/beneficiaries/possible-duplicates", officer, 200).size());
+
+        var card = postJson("/api/officer/ration-cards", officer,
+                "{\"cardNumber\":\"TEST-DUP-0001\",\"headOfFamily\":\"Ramesh Pati\",\"district\":\"Pune\","
+                        + "\"category\":\"PHH\",\"familyMembers\":1}", 201);
+        postJson("/api/officer/beneficiaries", officer,
+                "{\"name\":\"Ramesh Pati\",\"age\":41,\"aadhaarLast4\":\"1234\","
+                        + "\"rationCardId\":" + card.get("id").asLong() + "}", 201);
+
+        var matches = getJson("/api/officer/beneficiaries/possible-duplicates", officer, 200);
+        assertEquals(1, matches.size());
+        assertEquals("XXXX-XXXX-1234", matches.get(0).get("aadhaarMasked").asText());
+        assertTrue(matches.get(0).get("nameSimilarityPercent").asInt() >= 85);
+        getJson("/api/officer/beneficiaries/possible-duplicates", login("beneficiary"), 403);
     }
 
     @Test
